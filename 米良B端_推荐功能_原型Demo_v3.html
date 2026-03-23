@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>米良B端 - 推荐功能原型Demo (v3.0 优化版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f0f2f5; }
+        .sidebar { width: 200px; background-color: #001529; min-height: 100vh; color: rgba(255,255,255,0.65); }
+        .sidebar-item { padding: 12px 24px; cursor: pointer; }
+        .sidebar-item.active { background-color: #1890ff; color: white; }
+        .main-content { flex: 1; padding: 20px; }
+        .tab { padding: 12px 24px; cursor: pointer; border-bottom: 2px solid transparent; color: #595959; }
+        .tab.active { border-bottom-color: #1890ff; color: #1890ff; font-weight: 500; }
+        .filter-label { font-size: 13px; color: #595959; margin-right: 8px; }
+        .filter-input { border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 11px; font-size: 13px; width: 150px; }
+        .table-header { background-color: #fafafa; color: #262626; font-weight: 500; font-size: 13px; }
+        .table-cell { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #595959; }
+        
+        /* Buttons */
+        .btn-primary { background-color: #1890ff; color: white; border: none; border-radius: 4px; padding: 4px 15px; cursor: pointer; font-size: 13px; }
+        .btn-default { background-color: white; color: #262626; border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 15px; cursor: pointer; font-size: 13px; }
+        .btn-default:disabled { background-color: #f5f5f5; color: #b8b8b8; cursor: not-allowed; }
+        .btn-link { color: #1890ff; cursor: pointer; background: none; border: none; padding: 0; font-size: 13px; }
+        /* 统一橙色操作按钮 */
+        .btn-link-orange { color: #fa8c16; cursor: pointer; background: none; border: none; padding: 0; font-size: 13px; font-weight: 500; }
+        .btn-link-orange:hover { color: #d46b08; }
+        
+        .tag-recommend { background-color: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; font-size: 11px; padding: 0 6px; border-radius: 2px; margin-left: 8px; display: inline-block; cursor: help; }
+        
+        /* Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 1000; justify-content: center; align-items: center; }
+        .modal { background: white; border-radius: 4px; width: 480px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .modal-header { padding: 16px 24px; border-bottom: 1px solid #f0f0f0; font-weight: 500; font-size: 16px; display: flex; justify-content: space-between; }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 10px 16px; border-top: 1px solid #f0f0f0; text-align: right; }
+        .form-item { margin-bottom: 16px; display: flex; align-items: flex-start; }
+        .form-label { width: 90px; text-align: right; margin-right: 12px; line-height: 32px; font-size: 14px; color: #262626; }
+        .form-label::before { content: '*'; color: #ff4d4f; margin-right: 4px; }
+        .form-label.optional::before { content: ''; margin-right: 0; }
+        .form-control { flex: 1; }
+        .form-input { width: 100%; border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 11px; font-size: 14px; line-height: 1.5; }
+        
+        /* 快捷选项按钮 */
+        .quick-date-btn { border: 1px solid #d9d9d9; background: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; margin-right: 8px; color: #595959; }
+        .quick-date-btn:hover { border-color: #1890ff; color: #1890ff; }
+        .quick-date-btn.active { border-color: #1890ff; color: #1890ff; background-color: #e6f7ff; }
+    </style>
+</head>
+<body class="flex">
+
+    <!-- Sidebar (Mock) -->
+    <div class="sidebar">
+        <div class="p-4 text-white font-bold text-lg border-b border-gray-700 mb-4">米良管理后台</div>
+        <div class="sidebar-item">口令词管理</div>
+        <div class="sidebar-item active">内容池</div>
+        <div class="sidebar-item">数据查询</div>
+        <div class="sidebar-item">人员管理</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="bg-white rounded shadow-sm">
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 px-4">
+                <div class="tab active">内容池</div>
+                <div class="tab">审核池</div>
+            </div>
+
+            <!-- Content Pool View -->
+            <div class="p-6">
+                <!-- Filters -->
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="flex items-center"><span class="filter-label w-20 text-right">类型:</span><select class="filter-input"><option>单日志</option></select></div>
+                    <div class="flex items-center"><span class="filter-label w-20 text-right">内容链接:</span><input type="text" class="filter-input" placeholder="请输入"></div>
+                    <div class="flex items-center"><span class="filter-label w-20 text-right">标签:</span><input type="text" class="filter-input" placeholder="请输入"></div>
+                    <div class="flex items-center"><span class="filter-label w-20 text-right">状态:</span><select class="filter-input"><option>请选择</option></select></div>
+                    
+                    <!-- 新增的筛选器 -->
+                    <div class="flex items-center">
+                        <span class="filter-label w-20 text-right font-bold text-blue-600">是否推荐:</span>
+                        <select class="filter-input border-blue-300">
+                            <option>全部</option>
+                            <option>是</option>
+                            <option>否</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center"><span class="filter-label w-20 text-right">IP信息:</span><input type="text" class="filter-input" placeholder="请输入"></div>
+                    <div class="flex items-center"><span class="filter-label w-20 text-right">标题:</span><input type="text" class="filter-input" placeholder="请输入"></div>
+                    
+                    <div class="flex items-center justify-end">
+                        <button class="btn-primary">查询</button>
+                    </div>
+                </div>
+
+                <!-- Batch Actions & Import -->
+                <div class="mb-4 flex justify-between items-center">
+                    <div class="flex gap-2">
+                        <button id="btn-batch-recommend" class="btn-default" disabled onclick="openModal('batch-add')">批量设为推荐</button>
+                        <button id="btn-batch-edit" class="btn-default" disabled onclick="openModal('batch-edit')">批量修改有效期</button>
+                        <button id="btn-batch-cancel" class="btn-default text-red-500" disabled onclick="openConfirmModal('batch-cancel')">批量取消推荐</button>
+                    </div>
+                    <!-- 调整位置：批量导入推荐按钮 -->
+                    <button class="btn-primary bg-green-600 hover:bg-green-700" onclick="openImportModal()">
+                        <span class="mr-1">📥</span> 批量导入推荐
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="table-cell table-header w-10"><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
+                            <th class="table-cell table-header">标题</th>
+                            <th class="table-cell table-header">链接</th>
+                            <th class="table-cell table-header">作者主页</th>
+                            <th class="table-cell table-header">标签</th>
+                            <th class="table-cell table-header">IP信息</th>
+                            <th class="table-cell table-header">口令词</th>
+                            <th class="table-cell table-header">状态</th>
+                            <th class="table-cell table-header">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Row 1: 已推荐 -->
+                        <tr>
+                            <td class="table-cell"><input type="checkbox" class="row-checkbox" onchange="updateBatchButtons()"></td>
+                            <td class="table-cell">
+                                【池畏】池骋亲手注射的那一针毒药...
+                                <!-- 推荐角标，带Tooltip -->
+                                <span class="tag-recommend" title="推荐有效期至：2026-03-26">🔥推荐</span>
+                            </td>
+                            <td class="table-cell text-blue-500 cursor-pointer">跳转</td>
+                            <td class="table-cell text-yellow-600">奶油收藏家</td>
+                            <td class="table-cell">池畏,同人,逆爱...</td>
+                            <td class="table-cell">逆爱</td>
+                            <td class="table-cell text-orange-500">1178</td>
+                            <td class="table-cell">正常</td>
+                            <td class="table-cell">
+                                <button class="btn-link mr-2">禁投</button>
+                                <!-- 统一橙色操作按钮 -->
+                                <button class="btn-link-orange mr-2" onclick="openModal('single-edit', '【池畏】池骋亲手注射的那一针毒药...')">编辑推荐</button>
+                                <button class="btn-link-orange" onclick="openConfirmModal('single-cancel')">取消推荐</button>
+                            </td>
+                        </tr>
+                        <!-- Row 2: 未推荐 -->
+                        <tr>
+                            <td class="table-cell"><input type="checkbox" class="row-checkbox" onchange="updateBatchButtons()"></td>
+                            <td class="table-cell">病娇监控着我的生活，我反手把...</td>
+                            <td class="table-cell text-blue-500 cursor-pointer">跳转</td>
+                            <td class="table-cell text-yellow-600">腐女实验室</td>
+                            <td class="table-cell">双男主,甜文...</td>
+                            <td class="table-cell">甜文</td>
+                            <td class="table-cell text-orange-500">519</td>
+                            <td class="table-cell">正常</td>
+                            <td class="table-cell">
+                                <button class="btn-link mr-2">禁投</button>
+                                <!-- 统一橙色操作按钮 -->
+                                <button class="btn-link-orange" onclick="openModal('single-add', '病娇监控着我的生活，我反手把...')">设为推荐</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 设置推荐 (单条/批量) -->
+    <div id="recommendModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="modal-title">设置推荐</span>
+                <span class="cursor-pointer text-gray-400 hover:text-gray-700" onclick="closeModal('recommendModal')">✕</span>
+            </div>
+            <div class="modal-body">
+                <!-- 1) 当前选中的文章标题，只读展示 -->
+                <div class="form-item" id="title-container">
+                    <div class="form-label optional">文章标题</div>
+                    <div class="form-control pt-1 text-gray-600 text-sm font-medium" id="modal-article-title">
+                        病娇监控着我的生活，我反手把...
+                    </div>
+                </div>
+                
+                <!-- 2) 推荐标签：固定“官方推荐”，只读展示 -->
+                <div class="form-item">
+                    <div class="form-label optional">推荐标签</div>
+                    <div class="form-control pt-1">
+                        <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm border border-gray-200 cursor-not-allowed">官方推荐</span>
+                    </div>
+                </div>
+                
+                <!-- 3) 推荐有效期：必选，精确到天，带快捷选项 -->
+                <div class="form-item">
+                    <div class="form-label">推荐有效期</div>
+                    <div class="form-control">
+                        <input type="date" id="expire-date" class="form-input mb-2">
+                        <div class="flex mt-2">
+                            <button class="quick-date-btn" onclick="setQuickDate(1, this)">1天</button>
+                            <button class="quick-date-btn active" onclick="setQuickDate(3, this)">3天</button>
+                            <button class="quick-date-btn" onclick="setQuickDate(7, this)">7天</button>
+                            <button class="quick-date-btn" onclick="setQuickDate(30, this)">30天</button>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-2">到达该日期后，文章将自动失去推荐状态。</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-link mr-4 text-gray-600" onclick="closeModal('recommendModal')">取消</button>
+                <button class="btn-primary" onclick="saveRecommend()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 批量导入推荐 -->
+    <div id="importModal" class="modal-overlay">
+        <div class="modal" style="width: 400px;">
+            <div class="modal-header">
+                <span>批量导入推荐名单</span>
+                <span class="cursor-pointer text-gray-400 hover:text-gray-700" onclick="closeModal('importModal')">✕</span>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4 text-sm text-gray-600">
+                    请先下载模板，按要求填写文章ID及有效期后上传。
+                </div>
+                <div class="mb-6">
+                    <a href="#" class="text-blue-500 hover:underline text-sm">⬇️ 下载 Excel 模板</a>
+                </div>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center bg-gray-50 hover:bg-gray-100 cursor-pointer">
+                    <div class="text-2xl mb-2">📁</div>
+                    <div class="text-sm text-gray-500">点击或将文件拖拽到这里上传</div>
+                    <div class="text-xs text-gray-400 mt-1">支持 .xlsx, .xls 格式</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-link mr-4 text-gray-600" onclick="closeModal('importModal')">取消</button>
+                <button class="btn-primary" onclick="alert('导入成功！'); closeModal('importModal')">开始导入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 二次确认 (取消推荐) -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal" style="width: 320px;">
+            <div class="modal-body pt-8 pb-6 text-center">
+                <div class="text-4xl text-orange-500 mb-4">⚠️</div>
+                <div class="text-base font-medium text-gray-800 mb-2">确认取消推荐？</div>
+                <div class="text-sm text-gray-500">取消后，文章将从C端推荐位下线，且不可恢复。</div>
+            </div>
+            <div class="modal-footer flex justify-center border-t-0 pb-6">
+                <button class="btn-default mr-4" onclick="closeModal('confirmModal')">暂不取消</button>
+                <button class="btn-primary bg-red-500 hover:bg-red-600" onclick="executeCancel()">确认取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化日期 (当前日期 + 3天)
+        function initDefaultDate() {
+            const date = new Date();
+            date.setDate(date.getDate() + 3);
+            document.getElementById('expire-date').value = date.toISOString().split('T')[0];
+        }
+
+        // 快捷设置日期
+        function setQuickDate(days, btnElement) {
+            // 更新按钮样式
+            document.querySelectorAll('.quick-date-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            
+            // 计算并设置日期
+            const date = new Date();
+            date.setDate(date.getDate() + days);
+            document.getElementById('expire-date').value = date.toISOString().split('T')[0];
+        }
+
+        // 批量操作按钮联动逻辑
+        function toggleAll(source) {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(cb => cb.checked = source.checked);
+            updateBatchButtons();
+        }
+
+        function updateBatchButtons() {
+            const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+            const btns = ['btn-batch-recommend', 'btn-batch-edit', 'btn-batch-cancel'];
+            
+            btns.forEach(id => {
+                const btn = document.getElementById(id);
+                if (checkedCount > 0) {
+                    btn.removeAttribute('disabled');
+                    if(id === 'btn-batch-recommend' || id === 'btn-batch-edit') {
+                        btn.classList.add('border-blue-500', 'text-blue-500');
+                    }
+                } else {
+                    btn.setAttribute('disabled', 'true');
+                    btn.classList.remove('border-blue-500', 'text-blue-500');
+                }
+            });
+        }
+
+        // 弹窗逻辑控制
+        function openModal(actionType, title = '') {
+            const titleMap = {
+                'single-add': '设为推荐',
+                'single-edit': '编辑推荐',
+                'batch-add': '批量设为推荐',
+                'batch-edit': '批量修改有效期'
+            };
+            document.getElementById('modal-title').innerText = titleMap[actionType];
+            
+            // 控制标题展示逻辑
+            const titleContainer = document.getElementById('title-container');
+            if (actionType.startsWith('single')) {
+                titleContainer.style.display = 'flex';
+                document.getElementById('modal-article-title').innerText = title;
+            } else {
+                titleContainer.style.display = 'none'; // 批量操作时不展示单一标题
+            }
+            
+            initDefaultDate();
+            // 重置快捷按钮状态为3天
+            document.querySelectorAll('.quick-date-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.quick-date-btn')[1].classList.add('active');
+            
+            document.getElementById('recommendModal').style.display = 'flex';
+        }
+
+        function openImportModal() {
+            document.getElementById('importModal').style.display = 'flex';
+        }
+
+        function openConfirmModal(actionType) {
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function saveRecommend() {
+            alert('推荐设置成功！');
+            closeModal('recommendModal');
+        }
+
+        function executeCancel() {
+            alert('已成功取消推荐！');
+            closeModal('confirmModal');
+        }
+    </script>
+</body>
+</html>
