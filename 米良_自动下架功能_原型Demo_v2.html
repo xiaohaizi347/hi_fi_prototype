@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>米良管理后台 - 自动下架配置与批量停用 (v2.0)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f0f2f5; }
+        .sidebar { width: 200px; background-color: #001529; min-height: 100vh; color: rgba(255,255,255,0.65); }
+        .sidebar-item { padding: 12px 24px; cursor: pointer; }
+        .sidebar-item.active { background-color: #1890ff; color: white; }
+        .main-content { flex: 1; padding: 20px; }
+        
+        /* Tabs */
+        .tab-container { display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 24px; }
+        .tab { padding: 12px 24px; cursor: pointer; color: #595959; font-size: 14px; }
+        .tab.active { color: #1890ff; border-bottom: 2px solid #1890ff; font-weight: 500; }
+        
+        /* Sub Tabs (Business Lines) */
+        .sub-tab-container { display: flex; gap: 8px; margin-bottom: 20px; }
+        .sub-tab { padding: 6px 16px; border: 1px solid #d9d9d9; border-radius: 4px; cursor: pointer; font-size: 13px; color: #595959; background: white; }
+        .sub-tab.active { border-color: #1890ff; color: #1890ff; background: #e6f7ff; }
+        
+        /* Buttons */
+        .btn-primary { background-color: #1890ff; color: white; border: none; border-radius: 4px; padding: 6px 16px; cursor: pointer; font-size: 14px; }
+        .btn-default { background-color: white; color: #262626; border: 1px solid #d9d9d9; border-radius: 4px; padding: 6px 16px; cursor: pointer; font-size: 14px; }
+        .btn-default:disabled { background-color: #f5f5f5; color: #b8b8b8; cursor: not-allowed; }
+        .btn-danger { background-color: white; color: #ff4d4f; border: 1px solid #ff4d4f; border-radius: 4px; padding: 6px 16px; cursor: pointer; font-size: 14px; }
+        .btn-danger:disabled { background-color: #f5f5f5; color: #b8b8b8; border-color: #d9d9d9; cursor: not-allowed; }
+        .btn-link { color: #1890ff; cursor: pointer; background: none; border: none; padding: 0; font-size: 13px; }
+        
+        /* Table */
+        .table-header { background-color: #fafafa; color: #262626; font-weight: 500; font-size: 13px; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; text-align: left; }
+        .table-cell { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #595959; }
+        
+        /* Switch */
+        .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #1890ff; }
+        input:checked + .slider:before { transform: translateX(22px); }
+        
+        /* Form */
+        .rule-input { width: 60px; border: 1px solid #d9d9d9; border-radius: 4px; padding: 4px 8px; text-align: center; margin: 0 8px; }
+        .rule-input:disabled { background-color: #f5f5f5; cursor: not-allowed; }
+        
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 1000; justify-content: center; align-items: center; }
+        .modal { background: white; border-radius: 4px; width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    </style>
+</head>
+<body class="flex">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="p-4 text-white font-bold text-lg border-b border-gray-700 mb-4">米良管理后台</div>
+        <div class="sidebar-item" onclick="switchPage('content')">内容池</div>
+        <div class="sidebar-item active" onclick="switchPage('tools')">运营工具</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        
+        <!-- Page 1: 运营工具 -> 自动下架配置 -->
+        <div id="page-tools" class="bg-white rounded shadow-sm p-6 min-h-full">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">运营工具</h2>
+            
+            <div class="tab-container">
+                <div class="tab">资源位配置</div>
+                <div class="tab">标签过滤</div>
+                <div class="tab">同步账号</div>
+                <div class="tab active">自动下架配置</div>
+            </div>
+
+            <div class="max-w-3xl">
+                <!-- 多业务线切换 -->
+                <div class="sub-tab-container">
+                    <div class="sub-tab active" onclick="switchBusinessLine(this, 'cpa')">拉新CPA</div>
+                    <div class="sub-tab" onclick="switchBusinessLine(this, 'cps')">书城CPS</div>
+                    <div class="sub-tab" onclick="switchBusinessLine(this, 'ugc')">同人UGC</div>
+                </div>
+
+                <!-- 全局开关 -->
+                <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                    <div>
+                        <div class="font-bold text-gray-800 text-base">自动下架机制 <span id="current-biz-label" class="text-blue-500 text-sm ml-2">(当前：拉新CPA)</span></div>
+                        <div class="text-sm text-gray-500 mt-1">开启后，系统将每天凌晨自动扫描该业务线内容池，并停用符合规则的文章。</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="global-switch" checked onchange="toggleRules()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- 规则配置区 -->
+                <div class="border border-gray-200 rounded-lg p-6 mb-6" id="rule-container">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                        <span class="w-1 h-4 bg-blue-500 mr-2 inline-block"></span>
+                        规则一：基于口令词数量
+                    </h3>
+                    <div class="flex items-center text-gray-700 text-sm bg-blue-50 p-4 rounded">
+                        文章上架满 
+                        <input type="number" class="rule-input" value="30" id="rule-days"> 
+                        天后，若累计生成的口令词数量少于 
+                        <input type="number" class="rule-input" value="5" id="rule-count"> 
+                        个，则自动停用该文章。
+                    </div>
+                    <div class="text-xs text-gray-400 mt-3 ml-1">
+                        * 注：被系统自动停用的文章，状态将显示为“已停用(系统)”，运营可在内容池中手动恢复。恢复后，规则起算时间将重置。
+                    </div>
+                </div>
+
+                <!-- 保存按钮 -->
+                <div class="flex justify-end">
+                    <button class="btn-primary" onclick="saveRules()">保存配置</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 2: 内容池 (展示批量停用/启用及状态细分) -->
+        <div id="page-content" class="bg-white rounded shadow-sm p-6 min-h-full hidden">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">内容池</h2>
+            
+            <!-- 模拟筛选器 -->
+            <div class="flex gap-4 mb-6">
+                <div class="flex items-center">
+                    <span class="text-sm text-gray-600 mr-2">状态:</span>
+                    <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+                        <option>全部</option>
+                        <option>正常</option>
+                        <option>已停用(手动)</option>
+                        <option>已停用(系统)</option>
+                    </select>
+                </div>
+                <button class="btn-primary">查询</button>
+            </div>
+
+            <!-- 批量操作栏 (分组展示) -->
+            <div class="mb-4 flex items-center bg-gray-50 p-2 rounded border border-gray-200">
+                <!-- 推荐管理组 -->
+                <div class="flex gap-2 pr-4 border-r border-gray-300">
+                    <span class="text-xs text-gray-400 flex items-center mr-2">推荐管理:</span>
+                    <button class="btn-default" disabled>批量设为推荐</button>
+                    <button class="btn-default" disabled>批量修改有效期</button>
+                </div>
+                <!-- 状态管理组 -->
+                <div class="flex gap-2 pl-4">
+                    <span class="text-xs text-gray-400 flex items-center mr-2">状态管理:</span>
+                    <button id="btn-batch-disable" class="btn-danger" disabled onclick="openConfirmModal('disable')">批量停用</button>
+                    <button id="btn-batch-enable" class="btn-default" disabled onclick="openConfirmModal('enable')">批量启用</button>
+                </div>
+            </div>
+
+            <!-- 列表 -->
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr>
+                        <th class="table-header w-10"><input type="checkbox" onclick="toggleAll(this)"></th>
+                        <th class="table-header">文章标题</th>
+                        <th class="table-header">规则起算时间</th>
+                        <th class="table-header">口令词数</th>
+                        <th class="table-header">状态</th>
+                        <th class="table-header">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="table-cell"><input type="checkbox" class="row-checkbox" onchange="updateBatchBtns()"></td>
+                        <td class="table-cell text-blue-600">【池畏】池骋亲手注射的那一针毒药...</td>
+                        <td class="table-cell">2026-03-01</td>
+                        <td class="table-cell">1178</td>
+                        <td class="table-cell"><span class="text-green-500">正常</span></td>
+                        <td class="table-cell"><button class="btn-link text-red-500">停用</button></td>
+                    </tr>
+                    <tr class="bg-gray-50">
+                        <td class="table-cell"><input type="checkbox" class="row-checkbox" onchange="updateBatchBtns()"></td>
+                        <td class="table-cell text-gray-500">病娇监控着我的生活，我反手把...</td>
+                        <td class="table-cell text-gray-500">2026-01-15</td>
+                        <td class="table-cell text-gray-500">2</td>
+                        <td class="table-cell"><span class="text-orange-500">已停用(系统)</span></td>
+                        <td class="table-cell"><button class="btn-link">启用</button></td>
+                    </tr>
+                    <tr class="bg-gray-50">
+                        <td class="table-cell"><input type="checkbox" class="row-checkbox" onchange="updateBatchBtns()"></td>
+                        <td class="table-cell text-gray-500">【BL】他冷漠的指着十八楼窗外...</td>
+                        <td class="table-cell text-gray-500">2026-02-10</td>
+                        <td class="table-cell text-gray-500">15</td>
+                        <td class="table-cell"><span class="text-gray-500">已停用(手动)</span></td>
+                        <td class="table-cell"><button class="btn-link">启用</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- 二次确认弹窗 -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal">
+            <div class="p-6 text-center">
+                <div class="text-4xl mb-4" id="modal-icon">⚠️</div>
+                <div class="text-lg font-bold text-gray-800 mb-2" id="modal-title">确认停用？</div>
+                <div class="text-sm text-gray-500 mb-6" id="modal-desc">停用后博主将无法生成新的口令词。</div>
+                <div class="flex justify-center gap-4">
+                    <button class="btn-default" onclick="closeModal()">取消</button>
+                    <button class="btn-primary" id="modal-confirm-btn" onclick="executeAction()">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 页面切换逻辑
+        function switchPage(page) {
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            document.getElementById('page-tools').style.display = page === 'tools' ? 'block' : 'none';
+            document.getElementById('page-content').style.display = page === 'content' ? 'block' : 'none';
+        }
+
+        // 业务线切换逻辑
+        function switchBusinessLine(element, bizType) {
+            document.querySelectorAll('.sub-tab').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            
+            const labelMap = { 'cpa': '拉新CPA', 'cps': '书城CPS', 'ugc': '同人UGC' };
+            document.getElementById('current-biz-label').innerText = `(当前：${labelMap[bizType]})`;
+            
+            // 模拟加载不同业务线的配置数据
+            if(bizType === 'cps') {
+                document.getElementById('rule-days').value = 45;
+                document.getElementById('rule-count').value = 10;
+            } else {
+                document.getElementById('rule-days').value = 30;
+                document.getElementById('rule-count').value = 5;
+            }
+        }
+
+        // 规则配置台逻辑
+        function toggleRules() {
+            const isChecked = document.getElementById('global-switch').checked;
+            const inputs = document.querySelectorAll('.rule-input');
+            const container = document.getElementById('rule-container');
+            
+            inputs.forEach(input => input.disabled = !isChecked);
+            container.style.opacity = isChecked ? '1' : '0.5';
+        }
+
+        function saveRules() {
+            const isChecked = document.getElementById('global-switch').checked;
+            const bizLabel = document.getElementById('current-biz-label').innerText;
+            if (!isChecked) {
+                alert(`已保存：${bizLabel} 自动下架机制已关闭。`);
+                return;
+            }
+            const days = document.getElementById('rule-days').value;
+            const count = document.getElementById('rule-count').value;
+            alert(`已保存：${bizLabel} 上架满 ${days} 天且口令词少于 ${count} 个的文章将自动停用。`);
+        }
+
+        // 内容池批量操作逻辑
+        function toggleAll(source) {
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = source.checked);
+            updateBatchBtns();
+        }
+
+        function updateBatchBtns() {
+            const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+            const btnDisable = document.getElementById('btn-batch-disable');
+            const btnEnable = document.getElementById('btn-batch-enable');
+            
+            if (checkedCount > 0) {
+                btnDisable.removeAttribute('disabled');
+                btnEnable.removeAttribute('disabled');
+                btnEnable.classList.add('border-blue-500', 'text-blue-500');
+            } else {
+                btnDisable.setAttribute('disabled', 'true');
+                btnEnable.setAttribute('disabled', 'true');
+                btnEnable.classList.remove('border-blue-500', 'text-blue-500');
+            }
+        }
+
+        // 弹窗逻辑
+        let currentAction = '';
+        function openConfirmModal(action) {
+            currentAction = action;
+            const count = document.querySelectorAll('.row-checkbox:checked').length;
+            
+            if (action === 'disable') {
+                document.getElementById('modal-icon').innerText = '⚠️';
+                document.getElementById('modal-title').innerText = `确认停用选中的 ${count} 篇文章？`;
+                document.getElementById('modal-desc').innerText = '停用后博主将无法生成新的口令词。';
+                document.getElementById('modal-confirm-btn').className = 'btn-primary bg-red-500 hover:bg-red-600';
+            } else {
+                document.getElementById('modal-icon').innerText = '✅';
+                document.getElementById('modal-title').innerText = `确认重新启用选中的 ${count} 篇文章？`;
+                document.getElementById('modal-desc').innerText = '启用后文章将恢复在内容池中的正常展示，且规则起算时间将重置为今日。';
+                document.getElementById('modal-confirm-btn').className = 'btn-primary';
+            }
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+        }
+
+        function executeAction() {
+            alert(currentAction === 'disable' ? '批量停用成功！' : '批量启用成功！');
+            closeModal();
+        }
+    </script>
+</body>
+</html>
