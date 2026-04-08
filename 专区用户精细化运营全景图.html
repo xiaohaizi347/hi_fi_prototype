@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>精选专区用户精细化运营全景图 (v4.0 交互版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8fafc;
+        }
+        .matrix-container {
+            min-width: 1200px;
+            overflow-x: auto;
+        }
+        .stage-header {
+            background: linear-gradient(to bottom, #f1f5f9, #ffffff);
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .track-label-a {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border-left: 4px solid #ff9800;
+        }
+        .track-label-b {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-left: 4px solid #2196f3;
+        }
+        .node-card {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #e2e8f0;
+            position: relative;
+            transition: all 0.2s;
+        }
+        /* 可交互节点的样式强化 */
+        .node-interactive {
+            cursor: pointer;
+        }
+        .node-interactive:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            border-color: #3b82f6;
+        }
+        .node-interactive::before {
+            content: '';
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 8px;
+            height: 8px;
+            background-color: #3b82f6;
+            border-radius: 50%;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        .node-acq { border-top: 3px solid #3b82f6; }
+        .node-act { border-top: 3px solid #8b5cf6; }
+        .node-conv { border-top: 3px solid #ef4444; background-color: #fff5f5; }
+        .node-ret { border-top: 3px solid #10b981; }
+        .node-rev { border-top: 3px solid #f59e0b; border-style: dashed; border-width: 2px; }
+        
+        .arrow-right::after {
+            content: '→';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #cbd5e1;
+            font-weight: bold;
+        }
+
+        /* 抽屉动画 */
+        .drawer-enter-active, .drawer-leave-active {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .drawer-enter-from, .drawer-leave-to {
+            transform: translateX(100%);
+        }
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.3s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+        
+        /* 隐藏滚动条 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased">
+
+<div id="app">
+    <div class="p-6 md:p-12 max-w-[1400px] mx-auto">
+        <!-- Header -->
+        <header class="mb-8 border-b pb-4 flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+                    精选专区用户精细化运营全景图 <span class="ml-3 bg-blue-100 text-blue-700 text-sm px-2 py-1 rounded-md font-semibold">v4.0 交互版</span>
+                </h1>
+                <p class="text-sm text-gray-500">点击带有 <span class="inline-block w-2 h-2 bg-blue-500 rounded-full mx-1"></span> 蓝点的卡片，下钻查看策略详情、数据表现与交互 Demo。</p>
+            </div>
+            <button class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center">
+                <i class="ph-bold ph-download-simple mr-2"></i> 导出报告
+            </button>
+        </header>
+
+        <!-- 核心矩阵图 -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+            <div class="matrix-container">
+                
+                <!-- 表头 -->
+                <div class="flex stage-header">
+                    <div class="w-48 flex-shrink-0 p-4 border-r border-gray-200 flex items-center justify-center bg-gray-50">
+                        <span class="font-bold text-gray-500 text-sm uppercase tracking-wider">用户轨道 \ 阶段</span>
+                    </div>
+                    <div class="flex-1 grid grid-cols-5 divide-x divide-gray-200">
+                        <div class="p-4 text-center">
+                            <div class="font-bold text-gray-800">1. 获取与触达</div>
+                            <div class="text-xs text-gray-500 mt-1">Acquisition</div>
+                        </div>
+                        <div class="p-4 text-center">
+                            <div class="font-bold text-gray-800">2. 承接与破冰</div>
+                            <div class="text-xs text-gray-500 mt-1">Activation</div>
+                        </div>
+                        <div class="p-4 text-center">
+                            <div class="font-bold text-red-600">3. 首次转化</div>
+                            <div class="text-xs text-red-400 mt-1">Conversion</div>
+                        </div>
+                        <div class="p-4 text-center">
+                            <div class="font-bold text-gray-800">4. 场域留存</div>
+                            <div class="text-xs text-gray-500 mt-1">Retention</div>
+                        </div>
+                        <div class="p-4 text-center">
+                            <div class="font-bold text-gray-800">5. 唤醒与复购</div>
+                            <div class="text-xs text-gray-500 mt-1">Revenue / Referral</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Track A: 主站原生用户 -->
+                <div class="flex border-b border-gray-200">
+                    <div class="w-48 flex-shrink-0 p-4 border-r border-gray-200 track-label-a flex flex-col justify-center">
+                        <h3 class="font-bold text-gray-900 text-base">Track A</h3>
+                        <h4 class="font-bold text-orange-600 text-sm mt-1">主站原生用户</h4>
+                        <ul class="text-[10px] text-gray-600 mt-2 space-y-1">
+                            <li>• 零获客成本</li>
+                            <li>• 高毛利空间</li>
+                            <li>• 需克制引流</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="flex-1 grid grid-cols-5 divide-x divide-gray-100 bg-orange-50/30">
+                        <!-- 1. 获取 -->
+                        <div class="p-4 space-y-3 relative">
+                            <!-- 🌟 可交互节点 1 -->
+                            <div @click="openDrawer('acq_upsell')" class="node-card node-acq arrow-right node-interactive">母链付费墙升单拦截</div>
+                            <div class="node-card node-acq arrow-right">搜索结果概念卡片</div>
+                            <div class="node-card node-acq arrow-right">首页推荐流动态触发</div>
+                            <div class="node-card node-acq arrow-right">单页末尾相似推荐</div>
+                        </div>
+                        <!-- 2. 承接 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <div class="node-card node-act arrow-right">
+                                <span class="font-bold">落地复制品单页</span><br>
+                                <span class="text-gray-500 text-xs">防迷失返回逻辑</span>
+                            </div>
+                            <div class="node-card node-act arrow-right">
+                                <span class="font-bold">落地专区首页</span><br>
+                                <span class="text-gray-500 text-xs">动态欢迎语+目标书置顶</span>
+                            </div>
+                        </div>
+                        <!-- 3. 转化 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center bg-red-50/30">
+                            <div class="node-card node-conv arrow-right">
+                                <span class="font-bold text-red-600">主站专属首月破冰价</span><br>
+                                <span class="text-red-400 text-xs">如 4.9元 (极限价格歧视)</span>
+                            </div>
+                            <div class="node-card node-conv arrow-right">
+                                <span class="font-bold text-red-600">历史消费折算抵扣</span><br>
+                                <span class="text-red-400 text-xs">利用沉没成本</span>
+                            </div>
+                            <!-- 🌟 可交互节点 2 -->
+                            <div @click="openDrawer('conv_exit_popup')" class="node-card node-conv arrow-right node-interactive">
+                                <span class="font-bold text-red-600">极限挽单弹窗</span><br>
+                                <span class="text-red-400 text-xs">退出时触发底价 (如 2.9元)</span>
+                            </div>
+                        </div>
+                        <!-- 4. 留存 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <div class="node-card node-ret arrow-right">引导加入专区书架</div>
+                            <div class="node-card node-ret arrow-right">关注专区服务号</div>
+                            <div class="node-card node-ret arrow-right">专区内同类神作连载</div>
+                        </div>
+                        <!-- 5. 唤醒 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <div class="node-card node-rev">
+                                <span class="font-bold">基于画像的同类爆款 Push</span><br>
+                                <span class="text-gray-500 text-xs">促使复购专区会员</span>
+                            </div>
+                            <div class="node-card node-rev">主站信息流隐秘召回</div>
+                            <div class="node-card node-rev">个人中心特权红点常驻</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Track B: 渠道获客用户 -->
+                <div class="flex">
+                    <div class="w-48 flex-shrink-0 p-4 border-r border-gray-200 track-label-b flex flex-col justify-center">
+                        <h3 class="font-bold text-gray-900 text-base">Track B</h3>
+                        <h4 class="font-bold text-blue-600 text-sm mt-1">渠道获客用户</h4>
+                        <ul class="text-[10px] text-gray-600 mt-2 space-y-1">
+                            <li>• 高获客成本 (CPA)</li>
+                            <li>• 需极速转化</li>
+                            <li>• 缺乏复访心智</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="flex-1 grid grid-cols-5 divide-x divide-gray-100 bg-blue-50/30">
+                        <!-- 1. 获取 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <div class="node-card node-acq arrow-right">站外种草 -> 搜口令词</div>
+                            <div class="node-card node-acq arrow-right">搜索置顶结果直达</div>
+                        </div>
+                        <!-- 2. 承接 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <div class="node-card node-act arrow-right">
+                                <span class="font-bold">落地复制品单页</span><br>
+                                <span class="text-gray-500 text-xs">极短链路，直面付费墙</span>
+                            </div>
+                        </div>
+                        <!-- 3. 转化 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center bg-red-50/30">
+                            <div class="node-card node-conv arrow-right">
+                                <span class="font-bold text-red-600">渠道硬性定价</span><br>
+                                <span class="text-red-400 text-xs">9.9元/单 (覆盖CPA成本)</span>
+                            </div>
+                            <div class="node-card node-conv arrow-right">口令词专属限时券</div>
+                        </div>
+                        <!-- 4. 留存 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <!-- 🌟 可交互节点 3 (预留给动作二) -->
+                            <div @click="openDrawer('ret_bookshelf')" class="node-card node-ret arrow-right node-interactive">
+                                <span class="font-bold">强制/强引导加入书架</span><br>
+                                <span class="text-gray-500 text-xs">建立私域锚点 (核心)</span>
+                            </div>
+                            <div class="node-card node-ret arrow-right">
+                                <span class="font-bold">签到领续费金</span><br>
+                                <span class="text-gray-500 text-xs">制造沉没成本</span>
+                            </div>
+                            <div class="node-card node-ret arrow-right">解锁独家番外 (时间切片)</div>
+                        </div>
+                        <!-- 5. 唤醒 -->
+                        <div class="p-4 space-y-3 relative flex flex-col justify-center">
+                            <div class="node-card node-rev">
+                                <span class="font-bold">降价/限免 Push</span><br>
+                                <span class="text-gray-500 text-xs">针对未转化流失者</span>
+                            </div>
+                            <div class="node-card node-rev">
+                                <span class="font-bold">更新提醒 Push</span><br>
+                                <span class="text-gray-500 text-xs">针对已转化者 (促复购)</span>
+                            </div>
+                            <div class="node-card node-rev">服务号私信触达</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 详情抽屉 (Drawer) -->
+    <Transition name="fade">
+        <div v-if="isDrawerOpen" class="fixed inset-0 bg-gray-900/40 z-40 backdrop-blur-sm" @click="closeDrawer"></div>
+    </Transition>
+
+    <Transition name="drawer">
+        <div v-if="isDrawerOpen" class="fixed top-0 right-0 h-full w-full md:w-[500px] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-200">
+            
+            <!-- 抽屉头部 -->
+            <div class="px-6 py-5 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
+                <div>
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{{ activeNodeData.stage }}</span>
+                        <span class="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{{ activeNodeData.track }}</span>
+                        <span :class="activeNodeData.status === '已上线' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'" class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                            {{ activeNodeData.status }}
+                        </span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900">{{ activeNodeData.title }}</h2>
+                </div>
+                <button @click="closeDrawer" class="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 抽屉内容区 -->
+            <div class="flex-1 overflow-y-auto hide-scrollbar p-6 space-y-8">
+                
+                <!-- 数据表现 (Metrics) -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 mb-3 flex items-center">
+                        <i class="ph-fill ph-chart-line-up text-blue-500 mr-2 text-lg"></i> 业务现状与数据表现
+                    </h3>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div v-for="(metric, index) in activeNodeData.metrics" :key="index" class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <div class="text-[10px] text-gray-500 mb-1">{{ metric.label }}</div>
+                            <div class="text-lg font-bold text-gray-900">{{ metric.value }}</div>
+                            <div v-if="metric.trend" class="text-[10px] mt-1" :class="metric.trend > 0 ? 'text-green-500' : 'text-red-500'">
+                                <i :class="metric.trend > 0 ? 'ph-bold ph-trend-up' : 'ph-bold ph-trend-down'"></i> {{ Math.abs(metric.trend) }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设计思路 (Strategy) -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 mb-3 flex items-center">
+                        <i class="ph-fill ph-lightbulb text-yellow-500 mr-2 text-lg"></i> 方案设计思路
+                    </h3>
+                    <div class="bg-yellow-50/50 rounded-lg p-4 border border-yellow-100 text-sm text-gray-700 leading-relaxed">
+                        {{ activeNodeData.strategy }}
+                    </div>
+                </div>
+
+                <!-- 业务规则 (Rules) -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 mb-3 flex items-center">
+                        <i class="ph-fill ph-list-checks text-emerald-500 mr-2 text-lg"></i> 核心业务规则
+                    </h3>
+                    <ul class="space-y-2">
+                        <li v-for="(rule, index) in activeNodeData.rules" :key="index" class="flex items-start text-sm text-gray-700">
+                            <i class="ph-bold ph-check text-emerald-500 mt-0.5 mr-2 flex-shrink-0"></i>
+                            <span class="leading-relaxed">{{ rule }}</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 关联资产 (Assets) -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 mb-3 flex items-center">
+                        <i class="ph-fill ph-folder-open text-purple-500 mr-2 text-lg"></i> 关联资产
+                    </h3>
+                    <div class="space-y-3">
+                        <a href="#" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors group">
+                            <div class="flex items-center">
+                                <i class="ph-fill ph-file-text text-gray-400 group-hover:text-blue-500 text-xl mr-3"></i>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900 group-hover:text-blue-700">查看详细 PRD 文档</div>
+                                    <div class="text-[10px] text-gray-500">包含完整异常处理与埋点需求</div>
+                                </div>
+                            </div>
+                            <i class="ph-bold ph-caret-right text-gray-400 group-hover:text-blue-500"></i>
+                        </a>
+                        <a :href="activeNodeData.demoLink" target="_blank" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-orange-400 hover:bg-orange-50 transition-colors group">
+                            <div class="flex items-center">
+                                <i class="ph-fill ph-device-mobile text-gray-400 group-hover:text-orange-500 text-xl mr-3"></i>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900 group-hover:text-orange-700">体验高保真交互 Demo</div>
+                                    <div class="text-[10px] text-gray-500">HTML 单文件，支持移动端预览</div>
+                                </div>
+                            </div>
+                            <i class="ph-bold ph-caret-right text-gray-400 group-hover:text-orange-500"></i>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- 抽屉底部操作区 -->
+            <div class="p-4 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3">
+                <button class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">编辑节点</button>
+                <button @click="closeDrawer" class="px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </Transition>
+
+</div>
+
+<script>
+    const { createApp, ref, reactive } = Vue;
+
+    // 模拟的节点数据库 (The Knowledge Base)
+    const nodeDatabase = {
+        'acq_upsell': {
+            title: '母链付费墙升单拦截',
+            stage: '1. 获取与触达',
+            track: 'Track A: 主站原生用户',
+            status: 'AB测试中',
+            metrics: [
+                { label: '日均曝光量', value: '12.5w', trend: 5.2 },
+                { label: '点击率 (CTR)', value: '4.2%', trend: 1.1 },
+                { label: '转化率 (CVR)', value: '1.8%', trend: -0.3 }
+            ],
+            strategy: '利用用户在单篇付费节点的贪婪心理，提供"加一点钱看全场"的升单选项。不破坏主站单篇生态，仅在付费墙(Paywall)处进行克制性拦截，将高意向用户洗入专区。',
+            rules: [
+                '仅对未开通专区会员的用户展示升单 Banner。',
+                '点击后直接落地该文章在专区的复制品单页，实现所见即所得。',
+                '落地页左上角返回键必须退回主站原文章，防止用户在专区迷失。',
+                '底部吸底面板必须强化"单篇价格 vs 会员价格"的对比账单。'
+            ],
+            demoLink: '动作一_主站流量引入与转化Demo.html'
+        },
+        'conv_exit_popup': {
+            title: '极限挽单弹窗',
+            stage: '3. 首次转化',
+            track: 'Track A: 主站原生用户',
+            status: '已上线',
+            metrics: [
+                { label: '日均触发次数', value: '8,500', trend: 2.4 },
+                { label: '挽回成功率', value: '12.4%', trend: 3.8 },
+                { label: '日增量营收', value: '¥3,056', trend: 15.2 }
+            ],
+            strategy: '主站流量获客成本为 0，在用户即将流失的最后一刻（退出收银台），通过极具视觉冲击力的弹窗抛出底价（如 2.9 元），击穿用户的最后心理防线，实现极限收割。',
+            rules: [
+                '仅在主站引流用户于专区收银台点击"返回/关闭"时触发。',
+                '单用户单自然日仅触发 1 次，避免过度打扰。',
+                '弹窗提供的 2 元立减券仅限当次支付有效，关闭弹窗即失效。'
+            ],
+            demoLink: '主站引流_专区首页与收银台Demo.html'
+        },
+        'ret_bookshelf': {
+            title: '强制/强引导加入书架',
+            stage: '4. 场域留存',
+            track: 'Track B: 渠道获客用户',
+            status: '规划中 (动作二)',
+            metrics: [
+                { label: '预期加入率', value: '65.0%' },
+                { label: '预期次留提升', value: '15.0%' },
+                { label: 'Push 触达率', value: '40.0%' }
+            ],
+            strategy: '渠道用户习惯"即买即走"。必须在他们初次阅读时，将常规的"收藏"替换为"加入专区书架"，从而建立合法的私域触达锚点，为后续的更新 Push 和复购唤醒铺路。',
+            rules: [
+                '渠道用户首次购买会员成功后，自动弹窗提示"已为您将本书加入专区书架"。',
+                '书架内文章有更新（含番外）时，触发系统 Push。',
+                '点击 Push 直接拉起 App 并落地专区书架，绕过口令词搜索链路。'
+            ],
+            demoLink: '#'
+        }
+    };
+
+    createApp({
+        setup() {
+            const isDrawerOpen = ref(false);
+            const activeNodeData = reactive({});
+
+            const openDrawer = (nodeId) => {
+                const data = nodeDatabase[nodeId];
+                if (data) {
+                    Object.assign(activeNodeData, data);
+                    isDrawerOpen.value = true;
+                }
+            };
+
+            const closeDrawer = () => {
+                isDrawerOpen.value = false;
+            };
+
+            return {
+                isDrawerOpen,
+                activeNodeData,
+                openDrawer,
+                closeDrawer
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
