@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS SKU维度结算公式配置器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased">
+    <div id="app" class="min-h-screen p-4">
+        <!-- Header -->
+        <div class="mb-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-lg font-bold text-gray-900">CPS渠道结算规则配置 (SKU维度)</h1>
+                <p class="text-xs text-gray-500 mt-1">支持为不同SKU独立设置结算单价、补贴及暗扣规则</p>
+            </div>
+            <button @click="saveAll" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm rounded-md shadow-sm font-medium transition-colors flex items-center">
+                <i class="fas fa-save mr-2"></i> 保存全局配置
+            </button>
+        </div>
+
+        <!-- Main Table Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
+                            <th class="px-3 py-2 font-medium">SKU名称</th>
+                            <th class="px-3 py-2 font-medium">平台</th>
+                            <th class="px-3 py-2 font-medium">原单价</th>
+                            <th class="px-3 py-2 font-medium w-32">CPS结算单价 (元)</th>
+                            <th class="px-3 py-2 font-medium w-32">订单补贴单价 (元)</th>
+                            <th class="px-3 py-2 font-medium w-40">订单扣减规则</th>
+                            <th class="px-3 py-2 font-medium text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 text-xs">
+                        <tr v-for="(sku, index) in skuList" :key="index" class="hover:bg-gray-50 transition-colors">
+                            <td class="px-3 py-2 font-medium text-gray-900">{{ sku.name }}</td>
+                            <td class="px-3 py-2">
+                                <span :class="sku.platform === '安卓' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'" class="px-1.5 py-0.5 rounded text-[10px] font-medium">
+                                    <i :class="sku.platform === '安卓' ? 'fab fa-android' : 'fab fa-apple'" class="mr-1"></i>{{ sku.platform }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2 text-gray-500">¥{{ sku.price }}</td>
+                            <td class="px-3 py-2">
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-500">¥</span>
+                                    <input type="number" v-model="sku.cpsPrice" class="w-full pl-6 pr-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 text-xs" placeholder="9.9">
+                                </div>
+                            </td>
+                            <td class="px-3 py-2">
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-500">¥</span>
+                                    <input type="number" v-model="sku.subsidy" class="w-full pl-6 pr-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 text-xs" placeholder="0">
+                                </div>
+                            </td>
+                            <td class="px-3 py-2">
+                                <select v-model="sku.ruleType" class="w-full border border-gray-300 rounded py-1 pl-2 pr-6 focus:ring-blue-500 focus:border-blue-500 text-xs">
+                                    <option value="none">不扣减</option>
+                                    <option value="simple">简易扣减</option>
+                                    <option value="gradient">梯度扣减</option>
+                                </select>
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <button v-if="sku.ruleType !== 'none'" @click="openConfigModal(sku)" class="text-blue-600 hover:text-blue-800 font-medium text-xs flex items-center justify-center w-full">
+                                    <i class="fas fa-cog mr-1"></i> 配置
+                                </button>
+                                <span v-else class="text-gray-400 text-xs">-</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Gradient Config Modal -->
+        <transition name="modal">
+            <div v-if="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black bg-opacity-50">
+                <div class="relative w-full max-w-2xl p-4 mx-auto">
+                    <div class="relative bg-white rounded-lg shadow-xl">
+                        <!-- Modal header -->
+                        <div class="flex items-center justify-between p-4 border-b rounded-t">
+                            <h3 class="text-xl font-semibold text-gray-900">
+                                扣减规则配置 - {{ currentEditingSku?.name }} ({{ currentEditingSku?.platform }})
+                            </h3>
+                            <button @click="closeModal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center">
+                                <i class="fas fa-times text-lg"></i>
+                            </button>
+                        </div>
+                        <!-- Modal body -->
+                        <div class="p-6 space-y-6">
+                            
+                            <!-- 简易扣减配置 -->
+                            <div v-if="currentEditingSku?.ruleType === 'simple'" class="bg-blue-50 p-4 rounded-md border border-blue-100">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">全局外显结算系数 (0-1之间)</label>
+                                <div class="flex items-center">
+                                    <input type="number" v-model="currentEditingSku.simpleRatio" step="0.01" min="0" max="1" class="w-32 border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    <span class="ml-3 text-sm text-gray-500">例：0.8 表示渠道带来10单，外显并结算8单。</span>
+                                </div>
+                            </div>
+
+                            <!-- 梯度扣减配置 -->
+                            <div v-if="currentEditingSku?.ruleType === 'gradient'">
+                                <div class="mb-4 text-sm text-gray-600 bg-yellow-50 p-3 rounded border border-yellow-200">
+                                    <i class="fas fa-info-circle text-yellow-500 mr-1"></i>
+                                    支持梯度设置，每个区间的外显订单数四舍五入，取整数。
+                                </div>
+                                
+                                <div class="grid grid-cols-12 gap-4 mb-2 text-sm font-medium text-gray-700 text-center">
+                                    <div class="col-span-7">当日订单数区间</div>
+                                    <div class="col-span-3">结算系数</div>
+                                    <div class="col-span-2">操作</div>
+                                </div>
+
+                                <div v-for="(rule, idx) in currentEditingSku.gradientRules" :key="idx" class="grid grid-cols-12 gap-4 mb-3 items-center">
+                                    <div class="col-span-7 flex items-center space-x-2">
+                                        <span class="text-gray-500">{{ idx === 0 ? '[' : '(' }}</span>
+                                        <input type="number" v-model="rule.min" disabled class="w-full bg-gray-100 border border-gray-300 rounded-md py-1.5 px-2 text-center sm:text-sm">
+                                        <span class="text-gray-500">,</span>
+                                        <input type="number" v-model="rule.max" @change="updateNextMin(idx)" :placeholder="idx === currentEditingSku.gradientRules.length - 1 ? '以上' : ''" class="w-full border border-gray-300 rounded-md py-1.5 px-2 text-center focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        <span class="text-gray-500">]</span>
+                                    </div>
+                                    <div class="col-span-3">
+                                        <input type="number" v-model="rule.ratio" step="0.01" min="0" max="1" class="w-full border border-gray-300 rounded-md py-1.5 px-2 text-center focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    </div>
+                                    <div class="col-span-2 flex justify-center">
+                                        <button v-if="idx === currentEditingSku.gradientRules.length - 1 && idx !== 0" @click="removeGradientRule(idx)" class="text-red-500 hover:text-red-700 p-1">
+                                            <i class="fas fa-minus-circle text-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button @click="addGradientRule" class="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
+                                    <i class="fas fa-plus mr-1"></i> 新增梯度
+                                </button>
+                            </div>
+
+                        </div>
+                        <!-- Modal footer -->
+                        <div class="flex items-center justify-end p-4 border-t border-gray-200 rounded-b bg-gray-50">
+                            <button @click="closeModal" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:ring-4 focus:outline-none focus:ring-gray-200 font-medium rounded-lg text-sm px-5 py-2.5 text-center mr-3">取消</button>
+                            <button @click="confirmModal" class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">确认配置</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive } = Vue;
+
+        createApp({
+            setup() {
+                // 初始化数据，基于业务提供的截图
+                const skuList = ref([
+                    { id: 1, name: '3天试用', platform: '安卓', price: 9.9, cpsPrice: 9.9, subsidy: 0, ruleType: 'gradient', simpleRatio: 0.8, gradientRules: [{min: 0, max: 10, ratio: 0.8}, {min: 10, max: 50, ratio: 0.7}, {min: 50, max: null, ratio: 0.6}] },
+                    { id: 2, name: '连续包月', platform: '安卓', price: 12.9, cpsPrice: 9.9, subsidy: 2, ruleType: 'gradient', simpleRatio: 0.8, gradientRules: [{min: 0, max: 10, ratio: 0.8}, {min: 10, max: 50, ratio: 0.7}, {min: 50, max: null, ratio: 0.6}] },
+                    { id: 3, name: '年卡', platform: '安卓', price: 108.9, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 4, name: '季卡', platform: '安卓', price: 75, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 5, name: '月卡', platform: '安卓', price: 25, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 6, name: '连续包季', platform: '安卓', price: 29.9, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 7, name: '连续包月', platform: '苹果', price: 16, cpsPrice: 9.9, subsidy: 2, ruleType: 'gradient', simpleRatio: 0.8, gradientRules: [{min: 0, max: 10, ratio: 0.8}, {min: 10, max: 50, ratio: 0.7}, {min: 50, max: null, ratio: 0.6}] },
+                    { id: 8, name: '年卡', platform: '苹果', price: 119, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 9, name: '月卡', platform: '苹果', price: 25, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 10, name: '季卡', platform: '苹果', price: 75, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                    { id: 11, name: '连续包季', platform: '苹果', price: 34, cpsPrice: 9.9, subsidy: 2, ruleType: 'none', simpleRatio: 1, gradientRules: [] },
+                ]);
+
+                const isModalOpen = ref(false);
+                const currentEditingSku = ref(null);
+
+                const openConfigModal = (sku) => {
+                    // 深拷贝当前编辑对象，避免未保存直接修改原数据
+                    currentEditingSku.value = JSON.parse(JSON.stringify(sku));
+                    if(currentEditingSku.value.gradientRules.length === 0) {
+                        currentEditingSku.value.gradientRules = [{min: 0, max: null, ratio: 1}];
+                    }
+                    isModalOpen.value = true;
+                };
+
+                const closeModal = () => {
+                    isModalOpen.value = false;
+                    currentEditingSku.value = null;
+                };
+
+                const confirmModal = () => {
+                    // 将修改同步回原列表
+                    const index = skuList.value.findIndex(s => s.id === currentEditingSku.value.id);
+                    if (index !== -1) {
+                        skuList.value[index] = currentEditingSku.value;
+                    }
+                    closeModal();
+                };
+
+                const addGradientRule = () => {
+                    const rules = currentEditingSku.value.gradientRules;
+                    const lastRule = rules[rules.length - 1];
+                    
+                    // 如果上一个区间的max为空，则给个默认值
+                    if (!lastRule.max) {
+                        lastRule.max = lastRule.min + 10;
+                    }
+                    
+                    rules.push({
+                        min: lastRule.max,
+                        max: null,
+                        ratio: 0.5
+                    });
+                };
+
+                const removeGradientRule = (idx) => {
+                    const rules = currentEditingSku.value.gradientRules;
+                    rules.splice(idx, 1);
+                    // 移除后，将最后一个区间的max置空（表示以上）
+                    rules[rules.length - 1].max = null;
+                };
+
+                const updateNextMin = (idx) => {
+                    const rules = currentEditingSku.value.gradientRules;
+                    if (idx < rules.length - 1) {
+                        rules[idx + 1].min = rules[idx].max;
+                    }
+                };
+
+                const saveAll = () => {
+                    alert('配置已保存！(Demo演示)');
+                    console.log('Saved Data:', JSON.parse(JSON.stringify(skuList.value)));
+                };
+
+                return {
+                    skuList,
+                    isModalOpen,
+                    currentEditingSku,
+                    openConfigModal,
+                    closeModal,
+                    confirmModal,
+                    addGradientRule,
+                    removeGradientRule,
+                    updateNextMin,
+                    saveAll
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
